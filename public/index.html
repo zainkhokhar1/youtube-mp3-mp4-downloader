@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Reel Downloader</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #1877f2;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #166fe5;
+        }
+        button:disabled {
+            background-color: #dddfe2;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            display: none;
+        }
+        .success {
+            background-color: #e6f7ee;
+            color: #1e7d5b;
+            display: block;
+        }
+        .error {
+            background-color: #fde8e8;
+            color: #c33;
+            display: block;
+        }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        progress {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reel downloader By Zain</h1>
+        <div class="form-group">
+            <label for="url">Facebook Reel URL:</label>
+            <input type="text" id="url" placeholder="https://www.facebook.com/reel/..." required>
+        </div>
+        <button id="downloadBtn">Download Reel</button>
+        
+        <div id="status"></div>
+        
+        <div class="progress-container" id="progressContainer">
+            <progress id="progressBar" value="0" max="100"></progress>
+            <div id="progressText">0%</div>
+        </div>
+    </div>
+
+    <script>
+        const downloadBtn = document.getElementById('downloadBtn');
+        const urlInput = document.getElementById('url');
+        const statusDiv = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+
+        downloadBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                showStatus('Please enter a Facebook Reel URL', 'error');
+                return;
+            }
+            
+            if (!url.includes('facebook.com')) {
+                showStatus('Please enter a valid Facebook URL', 'error');
+                return;
+            }
+
+            try {
+                // Disable button during download
+                downloadBtn.disabled = true;
+                showStatus('Preparing download...', 'success');
+                progressContainer.style.display = 'block';
+                
+                // Start download
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Download failed');
+                }
+                
+                // Get content length for progress tracking
+                const contentLength = +response.headers.get('Content-Length');
+                let receivedLength = 0;
+                
+                // Create a reader to track progress
+                const reader = response.body.getReader();
+                const chunks = [];
+                
+                while(true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    
+                    // Update progress
+                    if (contentLength) {
+                        const percent = Math.round((receivedLength / contentLength) * 100);
+                        progressBar.value = percent;
+                        progressText.textContent = `${percent}%`;
+                    }
+                }
+                
+                // Combine chunks into a single blob
+                const blob = new Blob(chunks);
+                const downloadUrl = window.URL.createObjectURL(blob);
+                
+                // Create a temporary anchor element to trigger download
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `facebook_reel_${Date.now()}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                window.URL.revokeObjectURL(downloadUrl);
+                a.remove();
+                
+                showStatus('Download complete! Check your downloads folder.', 'success');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+            } finally {
+                downloadBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        });
+        
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = type;
+            statusDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
